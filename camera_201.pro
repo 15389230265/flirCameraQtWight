@@ -26,10 +26,14 @@ CONFIG += c++11
 
 SOURCES += \
         main.cpp \
-        mainwindow.cpp
+        mainwindow.cpp \
+    myflircamera.cpp \
+    mylogging.cpp
 
 HEADERS += \
-        mainwindow.h
+        mainwindow.h \
+    myflircamera.h \
+    mylogging.h
 
 FORMS += \
         mainwindow.ui
@@ -38,3 +42,24 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+#INCLUDEPATH+=D:/Spinnaker/include
+#LIBS += D:\Spinnaker\lib64\vs2015\Spinnaker_v140.lib \
+#        D:\Spinnaker\lib64\vs2015\Spinnakerd_v140.lib
+
+#INCLUDEPATH+=D:/Spinnaker/1.13include
+#LIBS += D:\Spinnaker\lib64\vs2013\Spinnaker_v120.lib \
+#        D:\Spinnaker\lib64\vs2013\Spinnakerd_v120.lib
+#DEFINES += _flir_spin_113
+
+INCLUDEPATH+=D:/Spinnaker/newinclude
+LIBS += D:\Spinnaker\lib\newvs2015\Spinnaker_v140.lib \
+        D:\Spinnaker\lib\newvs2015\Spinnakerd_v140.lib
+DEFINES += _flir_spin_new
+
+INCLUDEPATH+=D:/OpenCV/opencv3.4/build/include/ \
+                D:/OpenCV/opencv3.4/build/include/opencv \
+                D:/OpenCV/opencv3.4/build/include/opencv2
+
+LIBS += D:\OpenCV\opencv3.4\build\x64\vc15\lib\opencv_world340.lib \
+        D:\OpenCV\opencv3.4\build\x64\vc15\lib\opencv_world340d.lib
