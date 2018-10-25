@@ -50,11 +50,12 @@ private:
     bool MyConfigurAcquisition(const CameraPtr &pCam, const std::string &camerNum);
     SystemPtr system;
     CameraList camList;
+    CameraList actureCamList;
     InterfaceList interfaceList;
 //    CameraPtr pCam = NULL;
 //    InterfacePtr interfacePtr = NULL;
     MyLogging *mylogging;
-    vector<std::string>camSerialNumber;
+    vector<std::string>camSerialNumber = {"18261062", "18261059"};
 };
 
 #endif // MAINWINDOW_H

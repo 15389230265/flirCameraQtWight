@@ -69,21 +69,29 @@ void MainWindow::init_info()
 bool MainWindow::init_camera()
 {
     this->system = System::GetInstance();
-    this->camList = system->GetCameras();
-    this->interfaceList = system->GetInterfaces();
+    this->camList = system->GetCameras();    
     CameraPtr pCam = NULL;
-    InterfacePtr interfacePtr = NULL;
-    unsigned int flag = 0;
+    InterfacePtr interfacePtr = NULL;    
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "------Camlist Info-------\n");
-    const unsigned int num_camList = camList.GetSize();
+    unsigned int num_camList = camList.GetSize();
+    num_camList = num_camList / 2;
     this->mylogging->MyPrintLogAll<QString>(MyLogging::INFO, QString("Camrea Num : %1\r\n").arg(num_camList));
     this->myPrintDeviceInfermation();
+    // Finish if there are no cameras
+    if(num_camList == 0){
+        camList.Clear();
+        system->ReleaseInstance();
+        this->mylogging->MyPrintLogAll<const char*>(MyLogging::WAR, "Not enough cameras!\n");
+        return false;
+    }
 
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "------Interfaces Info-------");
+    this->interfaceList = system->GetInterfaces();
     const unsigned int num_interfaceList = interfaceList.GetSize();
     this->mylogging->MyPrintLogAll<QString>(MyLogging::INFO, QString("Interfaces Num : %1\r\n").arg(num_interfaceList));
     InterfacePtr interfacePtrLast = NULL;
     gcstring interfaceDisplayNameLast;
+    unsigned int cameraListIndex = 0;
     for (unsigned int i = 0; i < num_interfaceList; i++){
         interfacePtr = interfaceList.GetByIndex(i);
         interfacePtr->UpdateCameras();
@@ -92,55 +100,74 @@ bool MainWindow::init_camera()
         const gcstring interfaceDisplayName = ptrInterfaceDisplayName->GetValue();
         this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + "\n");
         CameraList camList1 = interfacePtr->GetCameras();
-        if (camList1.GetSize() >= 1){
+        if (camList1.GetSize() < num_camList){
+            this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + " have no camera.\n");
+            continue;
+        }else{
             this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + " have camera.\n");
             if(!this->MyConfigureInterface(interfacePtr, string(interfaceDisplayName))){
                 this->mylogging->MyPrintLogAll<const char*>(MyLogging::ERRO, interfaceDisplayName + " Configure Setting erro!\r\n");
                 return false;
             }
-
-            pCam = camList.GetByIndex(flag);
+            for(unsigned int j = 0; j < 2; j++){
+                if(j == cameraListIndex)
+                {
+                    continue;
+                }else{
+                    camList1.RemoveBySerial(camSerialNumber[j]);
+                }
+            }
+            actureCamList.Append(camList1);
+            cameraListIndex += 1;
+            if(cameraListIndex > num_camList-1){
+                break;
+            }
+            pCam = actureCamList.GetByIndex(cameraListIndex);
             CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
-            std::string camAdress= string(interfaceDisplayName) + " " + camSerialNumber[flag] + "/" + string(ptrStringSerial->GetValue());
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camAdress + " \n");
-            //Initizlize camera
-            pCam->Init();
-            // Congigure Interface Settingd
-            // Configure IEEE 1588 settings
-            if(!this->MyConfigureIEEE1588(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure IEEE 1588 settings erro!\r\n");
-                return false;
-            }
-            //
-            if(!this->MyConfigureActionControl(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Action control settings erro!\r\n");
-                return false;
-            }
-            // Configure Action control settings
-            if(!this->MyConfigureOtherNodes(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure other node settings for frame synchronization erro!\r\n");
-                return false;
-            }
-            // Configure trigger mode
-            if(!this->MyConfigureTrigger(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure trigger mode erro!\r\n");
-                return false;
-            }
-            // Configure chunk data
-            if(!this->MyConfigureChunkData(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure chunk data erro!\r\n");
-                return false;
-            }
-            // Configure Acquisition
-            if(!this->MyConfigurAcquisition(pCam, camAdress)){
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Acquisition erro!\r\n");
-                return false;
-            }
-            flag += 1;
+            std::string camAdress= string(interfaceDisplayName) + " " + camSerialNumber[cameraListIndex] + "/" + string(ptrStringSerial->GetValue());
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camAdress + " \n");                    
             interfacePtrLast = interfacePtr;
             interfaceDisplayNameLast = interfaceDisplayName;
         }
-
+        my_delay(1000);
+    }
+    for(unsigned int i = 0; i < actureCamList.GetSize(); i++){
+        pCam = actureCamList.GetByIndex(i);
+        CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
+        std::string camAdress= camSerialNumber[cameraListIndex] + "/" + string(ptrStringSerial->GetValue());
+        //Initizlize camera
+        pCam->Init();
+        // Congigure Interface Settingd
+        // Configure IEEE 1588 settings
+        if(!this->MyConfigureIEEE1588(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure IEEE 1588 settings erro!\r\n");
+            return false;
+        }
+        //
+        if(!this->MyConfigureActionControl(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Action control settings erro!\r\n");
+            return false;
+        }
+        // Configure Action control settings
+        if(!this->MyConfigureOtherNodes(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure other node settings for frame synchronization erro!\r\n");
+            return false;
+        }
+        // Configure trigger mode
+        if(!this->MyConfigureTrigger(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure trigger mode erro!\r\n");
+            return false;
+        }
+        // Configure chunk data
+        if(!this->MyConfigureChunkData(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure chunk data erro!\r\n");
+            return false;
+        }
+        // Configure Acquisition
+        if(!this->MyConfigurAcquisition(pCam, camAdress)){
+            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Acquisition erro!\r\n");
+            return false;
+        }
     }
     if(!this->setTimeStamp(interfacePtrLast)){
         this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, "Interface " + string(interfaceDisplayNameLast) + " cannot set timestamps...\n");
@@ -279,7 +306,7 @@ bool MainWindow::setTimeStamp(const InterfacePtr & interfacePtr){
         CStringPtr ptrInterfaceDisplayName = nodeMapInterface.GetNode("InterfaceDisplayName");
         const gcstring interfaceDisplayName = ptrInterfaceDisplayName->GetValue();
         // Latch Timestamp for Camera 0
-        pCam = camList.GetBySerial(camSerialNumber[0]);
+        pCam = actureCamList.GetBySerial(camSerialNumber[0]);
         CCommandPtr ptrTimestampLatch = pCam->GetNodeMap().GetNode("TimestampLatch");
         if (!IsAvailable(ptrTimestampLatch))
         {
@@ -931,13 +958,13 @@ bool MainWindow::MyDeinitizeCamera(){
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "*** DEINITIZE CAMERA ***");
     try {
         for (auto camNum : camSerialNumber){
-            pCam = camList.GetBySerial(camNum);
+            pCam = actureCamList.GetBySerial(camNum);
             // Deinitialize camera
             pCam->DeInit();
             this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, "Camera " + camNum + " Deinitize...\n");
         }
         // Clear camera list before releasing system
-        camList.Clear();
+        actureCamList.Clear();
         interfaceList.Clear();
         // Release system
         system->ReleaseInstance();
@@ -971,26 +998,13 @@ void MainWindow::on_pushButtonCatchImg_clicked()
 {
     CameraPtr pCam = NULL;
     InterfacePtr interfacePtr = NULL;
-    unsigned int flag = 0;
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "*** CATCH SINGLE IMAGE ***");
     try {
-        for (unsigned int i = 0; i < interfaceList.GetSize(); i++){
-            interfacePtr = interfaceList.GetByIndex(i);
-//            interfacePtr->UpdateCameras();
-            INodeMap &nodeMapInterface = interfacePtr->GetTLNodeMap();
-            CStringPtr ptrInterfaceDisplayName = nodeMapInterface.GetNode("InterfaceDisplayName");
-            const gcstring interfaceDisplayName = ptrInterfaceDisplayName->GetValue();
-            CameraList camList1 = interfacePtr->GetCameras();
-            // Check if interface has any camera
-            if (camList1.GetSize() >= 1){
-                pCam = camList.GetByIndex(flag);
-                CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
-                std::string camAdress= string(interfaceDisplayName) + " " + camSerialNumber[flag] + "/" + string(ptrStringSerial->GetValue());
-                this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camAdress + " \n");
-                this->catchSingalImg(pCam, string(ptrStringSerial->GetValue()));
-                flag += 1;
+        for (unsigned int i = 0; i < actureCamList.GetSize(); i++){
+             pCam = actureCamList.GetByIndex(i);
+             CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
+             this->catchSingalImg(pCam, string(ptrStringSerial->GetValue()));
             }
-        }
 //        for (auto camNum : camSerialNumber){
 //            pCam = camList.GetBySerial(camNum);
 //            this->catchSingalImg(pCam, camNum);
