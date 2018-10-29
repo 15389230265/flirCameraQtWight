@@ -40,8 +40,9 @@ private:
     bool catchSingalImg(const CameraPtr &pCam, const std::string &camerNum);
     bool creatSaveImgFolder(const std::string &camerNum);
     bool MyDeinitizeCamera();
-    void myPrintDeviceInfermation();
-    bool MyConfigureInterface(const InterfacePtr & interfacePtr, const std::string &interfaceNum);
+    void myPrintDeviceInfermation(INodeMap & nodeMap, const unsigned int camNum);
+    bool myRunMULtipleCameras(const SystemPtr &system, const InterfaceList &interfaceList, const CameraList &camList);
+    bool MyConfigureInterface(const InterfaceList & interfaceList);
     bool MyConfigureIEEE1588(const CameraPtr &pCam, const std::string &camerNum);
     bool MyConfigureActionControl(const CameraPtr &pCam, const std::string &camerNum);
     bool MyConfigureOtherNodes(const CameraPtr &pCam, const std::string &camerNum);

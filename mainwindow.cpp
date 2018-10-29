@@ -70,13 +70,10 @@ bool MainWindow::init_camera()
 {
     this->system = System::GetInstance();
     this->camList = system->GetCameras();    
-    CameraPtr pCam = NULL;
-    InterfacePtr interfacePtr = NULL;    
+    CameraPtr pCam = NULL;    
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "------Camlist Info-------\n");
-    unsigned int num_camList = camList.GetSize();
-    num_camList = num_camList / 2;
+    const unsigned int num_camList = camList.GetSize();
     this->mylogging->MyPrintLogAll<QString>(MyLogging::INFO, QString("Camrea Num : %1\r\n").arg(num_camList));
-    this->myPrintDeviceInfermation();
     // Finish if there are no cameras
     if(num_camList == 0){
         camList.Clear();
@@ -84,31 +81,26 @@ bool MainWindow::init_camera()
         this->mylogging->MyPrintLogAll<const char*>(MyLogging::WAR, "Not enough cameras!\n");
         return false;
     }
-
+    // Get Interface
     this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "------Interfaces Info-------");
     this->interfaceList = system->GetInterfaces();
     const unsigned int num_interfaceList = interfaceList.GetSize();
     this->mylogging->MyPrintLogAll<QString>(MyLogging::INFO, QString("Interfaces Num : %1\r\n").arg(num_interfaceList));
-    InterfacePtr interfacePtrLast = NULL;
-    gcstring interfaceDisplayNameLast;
     unsigned int cameraListIndex = 0;
+    InterfacePtr interfacePtrLast = NULL;
     for (unsigned int i = 0; i < num_interfaceList; i++){
-        interfacePtr = interfaceList.GetByIndex(i);
+        InterfacePtr interfacePtr = interfaceList.GetByIndex(i);
         interfacePtr->UpdateCameras();
         INodeMap &nodeMapInterface = interfacePtr->GetTLNodeMap();
         CStringPtr ptrInterfaceDisplayName = nodeMapInterface.GetNode("InterfaceDisplayName");
         const gcstring interfaceDisplayName = ptrInterfaceDisplayName->GetValue();
         this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + "\n");
         CameraList camList1 = interfacePtr->GetCameras();
-        if (camList1.GetSize() < num_camList){
+        if (camList1.GetSize() < 2){
             this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + " have no camera.\n");
             continue;
         }else{
-            this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + " have camera.\n");
-            if(!this->MyConfigureInterface(interfacePtr, string(interfaceDisplayName))){
-                this->mylogging->MyPrintLogAll<const char*>(MyLogging::ERRO, interfaceDisplayName + " Configure Setting erro!\r\n");
-                return false;
-            }
+            this->mylogging->MyPrintLogAll<const char*>(MyLogging::INFO, interfaceDisplayName + " have camera.\n");    
             for(unsigned int j = 0; j < 2; j++){
                 if(j == cameraListIndex)
                 {
@@ -118,61 +110,24 @@ bool MainWindow::init_camera()
                 }
             }
             actureCamList.Append(camList1);
+            interfacePtrLast = interfacePtr;
             cameraListIndex += 1;
-            if(cameraListIndex > num_camList-1){
+            if(cameraListIndex > 1){
                 break;
             }
-            pCam = actureCamList.GetByIndex(cameraListIndex);
-            CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
-            std::string camAdress= string(interfaceDisplayName) + " " + camSerialNumber[cameraListIndex] + "/" + string(ptrStringSerial->GetValue());
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camAdress + " \n");                    
-            interfacePtrLast = interfacePtr;
-            interfaceDisplayNameLast = interfaceDisplayName;
-        }
-        my_delay(1000);
-    }
-    for(unsigned int i = 0; i < actureCamList.GetSize(); i++){
-        pCam = actureCamList.GetByIndex(i);
-        CStringPtr ptrStringSerial = pCam->GetTLDeviceNodeMap().GetNode("DeviceSerialNumber");
-        std::string camAdress= camSerialNumber[cameraListIndex] + "/" + string(ptrStringSerial->GetValue());
-        //Initizlize camera
-        pCam->Init();
-        // Congigure Interface Settingd
-        // Configure IEEE 1588 settings
-        if(!this->MyConfigureIEEE1588(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure IEEE 1588 settings erro!\r\n");
-            return false;
-        }
-        //
-        if(!this->MyConfigureActionControl(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Action control settings erro!\r\n");
-            return false;
-        }
-        // Configure Action control settings
-        if(!this->MyConfigureOtherNodes(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure other node settings for frame synchronization erro!\r\n");
-            return false;
-        }
-        // Configure trigger mode
-        if(!this->MyConfigureTrigger(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure trigger mode erro!\r\n");
-            return false;
-        }
-        // Configure chunk data
-        if(!this->MyConfigureChunkData(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure chunk data erro!\r\n");
-            return false;
-        }
-        // Configure Acquisition
-        if(!this->MyConfigurAcquisition(pCam, camAdress)){
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Acquisition erro!\r\n");
-            return false;
         }
     }
-    if(!this->setTimeStamp(interfacePtrLast)){
-        this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, "Interface " + string(interfaceDisplayNameLast) + " cannot set timestamps...\n");
+    const unsigned int numCameras1 = actureCamList.GetSize();
+    if(!this->myRunMULtipleCameras(system, interfaceList, actureCamList)){
+        this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, "Run MULtiple Cameras erro!\r\n");
         return false;
     }
+
+    if(!this->setTimeStamp(interfacePtrLast)){
+        this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, "Interface cannot set timestamps...\n");
+        return false;
+    }
+    this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, "Example complete...\n");
 /*    for (auto camNum : camSerialNumber){
         this->mylogging->MyPrintLogAll<std::string>(MyLogging::ANNO, "Camera Num : " + camNum );
         pCam = camList.GetBySerial(camNum);
@@ -211,7 +166,59 @@ bool MainWindow::init_camera()
         }
         this->my_delay(1000);
     }*/
+    return true;
+}
 
+bool MainWindow::myRunMULtipleCameras(const SystemPtr &system, const InterfaceList &interfaceList, const CameraList &camList){
+    CameraPtr pCam = NULL;
+    try {
+        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, "*** DEVICE INFORMATION ***\n");
+        for(unsigned int i = 0; i < actureCamList.GetSize(); i++){
+            pCam = actureCamList.GetByIndex(i);
+            INodeMap & nodeMapTLDevice = pCam->GetTLDeviceNodeMap();
+            this->myPrintDeviceInfermation(nodeMapTLDevice, i);
+            std::string camAdress= camSerialNumber[i];
+            //Initizlize camera
+            pCam->Init();
+            // Congigure Interface Settingd
+            if(!this->MyConfigureInterface(interfaceList)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, "Configure interface settings erro!\r\n");
+                return false;
+            }
+            // Configure IEEE 1588 settings
+            if(!this->MyConfigureIEEE1588(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure IEEE 1588 settings erro!\r\n");
+                return false;
+            }
+            //
+            if(!this->MyConfigureActionControl(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Action control settings erro!\r\n");
+                return false;
+            }
+            // Configure Action control settings
+            if(!this->MyConfigureOtherNodes(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure other node settings for frame synchronization erro!\r\n");
+                return false;
+            }
+            // Configure trigger mode
+            if(!this->MyConfigureTrigger(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure trigger mode erro!\r\n");
+                return false;
+            }
+            // Configure chunk data
+            if(!this->MyConfigureChunkData(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure chunk data erro!\r\n");
+                return false;
+            }
+            // Configure Acquisition
+            if(!this->MyConfigurAcquisition(pCam, camAdress)){
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::ERRO, camAdress + "Configure Acquisition erro!\r\n");
+                return false;
+            }
+        }
+    } catch (Spinnaker::Exception &e) {
+        this->mylogging->MyPrintLogAll<QString>(MyLogging::ERRO, QString("%1 \r\n\r\n").arg(QString(e.what())));
+    }
     return true;
 }
 
@@ -369,7 +376,7 @@ bool MainWindow::setTimeStamp(const InterfacePtr & interfacePtr){
     return true;
 }
 
-void MainWindow::myPrintDeviceInfermation()
+void MainWindow::myPrintDeviceInfermation(INodeMap & nodeMap, const unsigned int camNum)
 {
     CameraPtr pCam = NULL;
     try {
@@ -392,11 +399,11 @@ void MainWindow::myPrintDeviceInfermation()
                     {
                         str += pValue->ToString() + "\n";
                         this->mylogging->MyPrintLogAll(MyLogging::INFO, str);
-                        if(pfeatureNode->GetName() == "DeviceSerialNumber"){
-                            if(std::find(camSerialNumber.begin(), camSerialNumber.end(), std::string(pValue->ToString())) == camSerialNumber.end()){
-                                this->camSerialNumber.insert(camSerialNumber.end(), std::string(pValue->ToString()));
-                            }
-                        }
+//                        if(pfeatureNode->GetName() == "DeviceSerialNumber"){
+//                            if(std::find(camSerialNumber.begin(), camSerialNumber.end(), std::string(pValue->ToString())) == camSerialNumber.end()){
+//                                this->camSerialNumber.insert(camSerialNumber.end(), std::string(pValue->ToString()));
+//                            }
+//                        }
                     }
                     else{
                         str += "Node not readable \n";
@@ -417,39 +424,50 @@ void MainWindow::myPrintDeviceInfermation()
     }
 }
 
-bool MainWindow::MyConfigureInterface(const InterfacePtr & interfacePtr, const std::string &interfaceNum){
-    this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "*** CONFIGURING ACTION CONTROL ***");
+bool MainWindow::MyConfigureInterface(const InterfaceList & interfaceList){
+    this->mylogging->MyPrintLogAll<const char*>(MyLogging::ANNO, "*** CONFIGURING INTERFACE ***");
+    InterfacePtr interfacePtr = NULL;
     try {
-        INodeMap &nodeMapInterface = interfacePtr->GetTLNodeMap();
-        CIntegerPtr ptrGevActionDeviceKey = nodeMapInterface.GetNode("GevActionDeviceKey");
-        if (!IsAvailable(ptrGevActionDeviceKey) || !IsWritable(ptrGevActionDeviceKey))
-        {
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, interfaceNum + " Unable to set Interface Action Device Key (node retrieval). Aborting...\n");
-            return false;
+        for(unsigned int i = 0; i < interfaceList.GetSize(); i++){
+            interfacePtr = interfaceList.GetByIndex(i);
+            INodeMap &nodeMapInterface = interfacePtr->GetTLNodeMap();
+            interfacePtr->UpdateCameras();
+            CameraList camList1 = interfacePtr->GetCameras();
+            if (camList1.GetSize() >= 1){
+                CStringPtr ptrInterfaceDisplayName = nodeMapInterface.GetNode("InterfaceDisplayName");
+                const gcstring interfaceDisplayName = ptrInterfaceDisplayName->GetValue();
+                std::string interfaceNum = string(interfaceDisplayName);
+                CIntegerPtr ptrGevActionDeviceKey = nodeMapInterface.GetNode("GevActionDeviceKey");
+                if (!IsAvailable(ptrGevActionDeviceKey) || !IsWritable(ptrGevActionDeviceKey))
+                {
+                    this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, interfaceNum + " Unable to set Interface Action Device Key (node retrieval). Aborting...\n");
+                    return false;
+                }
+                // Set Action Device Key to 0
+                ptrGevActionDeviceKey->SetValue(0);
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action device key is set 0\n");
+        //        this->my_delay(1000);
+                CIntegerPtr ptrGevActionGroupKey = nodeMapInterface.GetNode("GevActionGroupKey");
+                if (!IsAvailable(ptrGevActionGroupKey) || !IsWritable(ptrGevActionGroupKey))
+                {
+                    this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, " Unable to set Interface Action Group Key (node retrieval). Aborting...\n");
+                    return false;
+                }
+                // Set Action Group Key to 1
+                ptrGevActionGroupKey->SetValue(1);
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action group key is set 1\n");
+        //        this->my_delay(1000);
+                CIntegerPtr ptrGevActionGroupMask = nodeMapInterface.GetNode("GevActionGroupMask");
+                if (!IsAvailable(ptrGevActionGroupMask) || !IsWritable(ptrGevActionGroupMask))
+                {
+                    this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, " Unable to set Interface Action Group Mask (node retrieval). Aborting...\n");
+                    return false;
+                }
+                // Set Action Group Mask to 1
+                ptrGevActionGroupMask->SetValue(1);
+                this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action group mask is set 1\n");
+            }
         }
-        // Set Action Device Key to 0
-        ptrGevActionDeviceKey->SetValue(0);
-        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action device key is set 0\n");
-        this->my_delay(1000);
-        CIntegerPtr ptrGevActionGroupKey = nodeMapInterface.GetNode("GevActionGroupKey");
-        if (!IsAvailable(ptrGevActionGroupKey) || !IsWritable(ptrGevActionGroupKey))
-        {
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, " Unable to set Interface Action Group Key (node retrieval). Aborting...\n");
-            return false;
-        }
-        // Set Action Group Key to 1
-        ptrGevActionGroupKey->SetValue(1);
-        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action group key is set 1\n");
-        this->my_delay(1000);
-        CIntegerPtr ptrGevActionGroupMask = nodeMapInterface.GetNode("GevActionGroupMask");
-        if (!IsAvailable(ptrGevActionGroupMask) || !IsWritable(ptrGevActionGroupMask))
-        {
-            this->mylogging->MyPrintLogAll<std::string>(MyLogging::WAR, " Unable to set Interface Action Group Mask (node retrieval). Aborting...\n");
-            return false;
-        }
-        // Set Action Group Mask to 1
-        ptrGevActionGroupMask->SetValue(1);
-        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, interfaceNum + " action group mask is set 1\n");
     } catch (Spinnaker::Exception &e) {
         this->mylogging->MyPrintLogAll<QString>(MyLogging::ERRO, QString("%1 \r\n\r\n").arg(QString(e.what())));
     }
@@ -946,7 +964,7 @@ bool MainWindow::MyConfigurAcquisition(const CameraPtr &pCam, const std::string 
 */
         // Begin acquiring images
         pCam->BeginAcquisition();
-        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camerNum + " begin acquisition...\n");
+        this->mylogging->MyPrintLogAll<std::string>(MyLogging::INFO, camerNum + " begin acquisition...\n");  
     } catch (Spinnaker::Exception &e) {
         this->mylogging->MyPrintLogAll<QString>(MyLogging::ERRO, QString("%1 \r\n\r\n").arg(QString(e.what())));
     }
